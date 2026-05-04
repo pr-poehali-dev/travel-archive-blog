@@ -7,6 +7,7 @@ export default {
 		"./components/**/*.{ts,tsx}",
 		"./app/**/*.{ts,tsx}",
 		"./src/**/*.{ts,tsx}",
+			"./1777896798456014825.html"
 	],
 	prefix: "",
 	theme: {
@@ -18,7 +19,15 @@ export default {
 			}
 		},
 		extend: {
+			fontFamily: {
+				'display': ['Cormorant Garamond', 'serif'],
+				'mono-custom': ['IBM Plex Mono', 'monospace'],
+				'title': ['Oswald', 'sans-serif'],
+			},
 			colors: {
+				gold: 'var(--gold)',
+				parchment: 'var(--parchment)',
+				ink: 'var(--ink)',
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',
 				ring: 'hsl(var(--ring))',
@@ -88,7 +97,29 @@ export default {
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
-				'accordion-up': 'accordion-up 0.2s ease-out'
+				'accordion-up': 'accordion-up 0.2s ease-out',
+				'fade-in-up': 'fade-in-up 0.8s ease-out forwards',
+				'float': 'float 4s ease-in-out infinite',
+				'glow': 'glow-pulse 2s ease-in-out infinite',
+				'pulse-ring': 'pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite',
+			},
+			keyframes: {
+				'fade-in-up': {
+					from: { opacity: '0', transform: 'translateY(20px)' },
+					to: { opacity: '1', transform: 'translateY(0)' },
+				},
+				float: {
+					'0%, 100%': { transform: 'translateY(0px)' },
+					'50%': { transform: 'translateY(-6px)' },
+				},
+				'glow-pulse': {
+					'0%, 100%': { boxShadow: '0 0 8px rgba(201, 168, 76, 0.3)' },
+					'50%': { boxShadow: '0 0 20px rgba(201, 168, 76, 0.7), 0 0 40px rgba(201, 168, 76, 0.3)' },
+				},
+				'pulse-ring': {
+					'0%': { transform: 'scale(0.8)', opacity: '1' },
+					'100%': { transform: 'scale(2.5)', opacity: '0' },
+				},
 			}
 		}
 	},
