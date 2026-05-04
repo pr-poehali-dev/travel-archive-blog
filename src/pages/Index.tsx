@@ -42,6 +42,7 @@ export default function Index() {
   const [locations, setLocations] = useState<Location[]>(INITIAL_LOCATIONS);
   const [activeLocation, setActiveLocation] = useState<number | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState({ name: "", country: "", lat: "", lng: "", date: "", desc: "", emoji: "📍" });
 
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -129,25 +130,65 @@ export default function Index() {
     }, 1500);
   };
 
-  const handleAddLocation = (e: React.FormEvent) => {
+  const resetForm = () => {
+    setForm({ name: "", country: "", lat: "", lng: "", date: "", desc: "", emoji: "📍" });
+    setEditingId(null);
+    setShowAddForm(false);
+  };
+
+  const handleStartEdit = (loc: Location) => {
+    setEditingId(loc.id);
+    setForm({
+      name: loc.name,
+      country: loc.country,
+      lat: String(loc.lat),
+      lng: String(loc.lng),
+      date: loc.date,
+      desc: loc.desc,
+      emoji: loc.emoji,
+    });
+    setShowAddForm(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleDelete = (id: number) => {
+    setLocations(locations.filter(l => l.id !== id));
+    if (editingId === id) resetForm();
+  };
+
+  const handleSubmitForm = (e: React.FormEvent) => {
     e.preventDefault();
     const lat = parseFloat(form.lat);
     const lng = parseFloat(form.lng);
     if (!form.name || isNaN(lat) || isNaN(lng)) return;
 
-    const newLoc: Location = {
-      id: Date.now(),
-      name: form.name,
-      country: form.country || "—",
-      lat, lng,
-      date: form.date || "—",
-      desc: form.desc || "Новое место в архиве.",
-      emoji: form.emoji || "📍",
-    };
-    setLocations([...locations, newLoc]);
-    setForm({ name: "", country: "", lat: "", lng: "", date: "", desc: "", emoji: "📍" });
-    setShowAddForm(false);
-    setTimeout(() => handleSelectLocation(newLoc), 300);
+    if (editingId !== null) {
+      const updated: Location = {
+        id: editingId,
+        name: form.name,
+        country: form.country || "—",
+        lat, lng,
+        date: form.date || "—",
+        desc: form.desc || "Новое место в архиве.",
+        emoji: form.emoji || "📍",
+      };
+      setLocations(locations.map(l => l.id === editingId ? updated : l));
+      resetForm();
+      setTimeout(() => handleSelectLocation(updated), 300);
+    } else {
+      const newLoc: Location = {
+        id: Date.now(),
+        name: form.name,
+        country: form.country || "—",
+        lat, lng,
+        date: form.date || "—",
+        desc: form.desc || "Новое место в архиве.",
+        emoji: form.emoji || "📍",
+      };
+      setLocations([...locations, newLoc]);
+      resetForm();
+      setTimeout(() => handleSelectLocation(newLoc), 300);
+    }
   };
 
   return (
@@ -191,18 +232,20 @@ export default function Index() {
               </div>
             </div>
 
-            <div ref={mapContainerRef} style={{ height: "560px", width: "100%" }} />
+            <div ref={mapContainerRef} style={{ height: "780px", width: "100%" }} />
           </div>
 
           {showAddForm && (
             <div className="mt-4 p-4 animate-fade-in-up rounded-sm" style={{ border: "1px solid rgba(201,168,76,0.25)", background: "rgba(13,11,9,0.8)" }}>
               <div className="flex items-center justify-between mb-3">
-                <span className="font-mono-custom text-xs uppercase tracking-widest" style={{ color: "#C9A84C" }}>Новая координата</span>
-                <button onClick={() => setShowAddForm(false)} style={{ color: "rgba(201,168,76,0.5)" }}>
+                <span className="font-mono-custom text-xs uppercase tracking-widest" style={{ color: "#C9A84C" }}>
+                  {editingId !== null ? "Редактирование" : "Новая координата"}
+                </span>
+                <button onClick={resetForm} style={{ color: "rgba(201,168,76,0.5)" }}>
                   <Icon name="X" size={14} />
                 </button>
               </div>
-              <form onSubmit={handleAddLocation} className="grid grid-cols-2 gap-3">
+              <form onSubmit={handleSubmitForm} className="grid grid-cols-2 gap-3">
                 <input type="text" placeholder="Город" required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
                   className="px-3 py-2 text-sm font-mono-custom rounded-sm" style={{ background: "rgba(13,11,9,0.6)", border: "1px solid rgba(201,168,76,0.2)", color: "#E8D9B8" }} />
                 <input type="text" placeholder="Страна" value={form.country} onChange={e => setForm({ ...form, country: e.target.value })}
@@ -219,7 +262,7 @@ export default function Index() {
                   className="px-3 py-2 text-sm font-display italic rounded-sm col-span-2" style={{ background: "rgba(13,11,9,0.6)", border: "1px solid rgba(201,168,76,0.2)", color: "#E8D9B8" }} />
                 <button type="submit" className="col-span-2 py-2 text-sm font-mono-custom uppercase tracking-widest rounded-sm transition-all"
                   style={{ background: "rgba(201,168,76,0.2)", border: "1px solid #C9A84C", color: "#E8C96A" }}>
-                  ◈ Сохранить в архив
+                  ◈ {editingId !== null ? "Сохранить изменения" : "Сохранить в архив"}
                 </button>
               </form>
             </div>
@@ -232,18 +275,18 @@ export default function Index() {
               <Icon name="MapPin" size={12} className="text-[rgba(201,168,76,0.5)]" />
               <span className="font-mono-custom text-xs uppercase tracking-widest" style={{ color: "rgba(201,168,76,0.4)" }}>Журнал мест</span>
             </div>
-            <button onClick={() => setShowAddForm(!showAddForm)} className="flex items-center gap-1 px-2 py-1 rounded-sm transition-all"
+            <button onClick={() => { resetForm(); setShowAddForm(true); }} className="flex items-center gap-1 px-2 py-1 rounded-sm transition-all"
               style={{ border: "1px solid rgba(201,168,76,0.25)", color: "#C9A84C" }}>
               <Icon name="Plus" size={11} />
               <span className="font-mono-custom text-[10px] uppercase tracking-widest">Добавить</span>
             </button>
           </div>
 
-          <div className="space-y-2 max-h-[600px] overflow-y-auto pr-2">
+          <div className="space-y-2 max-h-[820px] overflow-y-auto pr-2">
             {locations.map(loc => (
               <div
                 key={loc.id}
-                className="location-card rounded-sm p-3 cursor-pointer"
+                className="location-card rounded-sm p-3 cursor-pointer group"
                 style={{ background: activeLocation === loc.id ? "rgba(201,168,76,0.08)" : "rgba(13,11,9,0.6)" }}
                 onMouseEnter={() => setActiveLocation(loc.id)}
                 onMouseLeave={() => setActiveLocation(null)}
@@ -263,8 +306,28 @@ export default function Index() {
                     {loc.date.split(" ")[1] || loc.date}
                   </div>
                 </div>
-                <div className="mt-2 pt-2 font-mono-custom text-xs" style={{ borderTop: "1px solid rgba(201,168,76,0.08)", color: "rgba(201,168,76,0.4)" }}>
-                  {formatCoord(loc.lat, true)} · {formatCoord(loc.lng, false)}
+                <div className="mt-2 pt-2 flex items-center justify-between" style={{ borderTop: "1px solid rgba(201,168,76,0.08)" }}>
+                  <span className="font-mono-custom text-xs" style={{ color: "rgba(201,168,76,0.4)" }}>
+                    {formatCoord(loc.lat, true)} · {formatCoord(loc.lng, false)}
+                  </span>
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleStartEdit(loc); }}
+                      className="p-1 rounded-sm transition-all hover:bg-[rgba(201,168,76,0.15)]"
+                      style={{ color: "rgba(201,168,76,0.7)" }}
+                      title="Редактировать"
+                    >
+                      <Icon name="Pencil" size={11} />
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDelete(loc.id); }}
+                      className="p-1 rounded-sm transition-all hover:bg-[rgba(180,60,60,0.2)]"
+                      style={{ color: "rgba(220,120,100,0.7)" }}
+                      title="Удалить"
+                    >
+                      <Icon name="Trash2" size={11} />
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
