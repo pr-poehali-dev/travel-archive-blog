@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from "react";
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
 import L from "leaflet";
 import Icon from "@/components/ui/icon";
 
@@ -31,14 +30,6 @@ const STATS = [
   { label: "Лет в пути", value: "6" },
 ];
 
-const customIcon = L.divIcon({
-  className: "custom-pin",
-  html: '<div class="pin-dot"></div>',
-  iconSize: [14, 14],
-  iconAnchor: [7, 7],
-  popupAnchor: [0, -10],
-});
-
 function formatCoord(value: number, isLat: boolean): string {
   const dir = isLat ? (value >= 0 ? "N" : "S") : (value >= 0 ? "E" : "W");
   const abs = Math.abs(value);
@@ -47,31 +38,94 @@ function formatCoord(value: number, isLat: boolean): string {
   return `${deg}°${min.toString().padStart(2, "0")}'${dir}`;
 }
 
-function FlyToLocation({ target }: { target: Location | null }) {
-  const map = useMap();
-  useEffect(() => {
-    if (target) {
-      map.flyTo([target.lat, target.lng], 5, { duration: 1.4 });
-    }
-  }, [target, map]);
-  return null;
-}
-
 export default function Index() {
   const [locations, setLocations] = useState<Location[]>(INITIAL_LOCATIONS);
   const [activeLocation, setActiveLocation] = useState<number | null>(null);
-  const [flyTarget, setFlyTarget] = useState<Location | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [form, setForm] = useState({ name: "", country: "", lat: "", lng: "", date: "", desc: "", emoji: "📍" });
-  const markerRefs = useRef<Record<number, L.Marker | null>>({});
 
-  const polylineCoords: [number, number][] = locations.map(l => [l.lat, l.lng]);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<L.Map | null>(null);
+  const markersRef = useRef<Record<number, L.Marker>>({});
+  const polylineRef = useRef<L.Polyline | null>(null);
+
+  useEffect(() => {
+    if (!mapContainerRef.current || mapRef.current) return;
+
+    const map = L.map(mapContainerRef.current, {
+      center: [20, 10],
+      zoom: 2,
+      minZoom: 2,
+      maxZoom: 18,
+      worldCopyJump: true,
+      zoomControl: true,
+    });
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
+    }).addTo(map);
+
+    mapRef.current = map;
+
+    return () => {
+      map.remove();
+      mapRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    Object.values(markersRef.current).forEach(m => m.remove());
+    markersRef.current = {};
+
+    if (polylineRef.current) {
+      polylineRef.current.remove();
+      polylineRef.current = null;
+    }
+
+    if (locations.length > 1) {
+      polylineRef.current = L.polyline(
+        locations.map(l => [l.lat, l.lng] as [number, number]),
+        { color: "#C9A84C", weight: 1, opacity: 0.4, dashArray: "4 6" }
+      ).addTo(map);
+    }
+
+    locations.forEach(loc => {
+      const icon = L.divIcon({
+        className: "custom-pin",
+        html: '<div class="pin-dot"></div>',
+        iconSize: [14, 14],
+        iconAnchor: [7, 7],
+        popupAnchor: [0, -10],
+      });
+
+      const popupHtml = `
+        <div>
+          <div class="pin-popup-title">${loc.emoji} ${loc.name}</div>
+          <div class="pin-popup-meta">${loc.country} · ${loc.date}</div>
+          <div class="pin-popup-desc">${loc.desc}</div>
+          <div class="pin-popup-coords">${formatCoord(loc.lat, true)} · ${formatCoord(loc.lng, false)}</div>
+        </div>
+      `;
+
+      const marker = L.marker([loc.lat, loc.lng], { icon })
+        .addTo(map)
+        .bindPopup(popupHtml);
+
+      marker.on("click", () => setActiveLocation(loc.id));
+      markersRef.current[loc.id] = marker;
+    });
+  }, [locations]);
 
   const handleSelectLocation = (loc: Location) => {
     setActiveLocation(loc.id);
-    setFlyTarget(loc);
+    const map = mapRef.current;
+    if (!map) return;
+    map.flyTo([loc.lat, loc.lng], 5, { duration: 1.4 });
     setTimeout(() => {
-      markerRefs.current[loc.id]?.openPopup();
+      markersRef.current[loc.id]?.openPopup();
     }, 1500);
   };
 
@@ -93,14 +147,13 @@ export default function Index() {
     setLocations([...locations, newLoc]);
     setForm({ name: "", country: "", lat: "", lng: "", date: "", desc: "", emoji: "📍" });
     setShowAddForm(false);
-    setTimeout(() => handleSelectLocation(newLoc), 100);
+    setTimeout(() => handleSelectLocation(newLoc), 300);
   };
 
   return (
     <div className="min-h-screen grid-bg" style={{ background: "#0D0B09" }}>
       <div className="fixed pointer-events-none" style={{ top: "20%", left: "50%", transform: "translateX(-50%)", width: "600px", height: "300px", background: "radial-gradient(ellipse, rgba(201,168,76,0.04) 0%, transparent 70%)", zIndex: 0 }} />
 
-      {/* Header */}
       <header className="relative z-10 px-8 pt-8 pb-4 flex items-start justify-between flex-wrap gap-4">
         <div className="animate-fade-in-up">
           <div className="flex items-center gap-3 mb-1">
@@ -127,12 +180,9 @@ export default function Index() {
 
       <div className="mx-8 mb-6" style={{ height: "1px", background: "linear-gradient(90deg, transparent, rgba(201,168,76,0.3) 20%, rgba(201,168,76,0.3) 80%, transparent)" }} />
 
-      {/* Main */}
       <main className="relative z-10 px-8 grid gap-6 pb-8" style={{ gridTemplateColumns: "1fr 320px" }}>
-        {/* MAP */}
         <div className="relative animate-fade-in-up" style={{ animationDelay: "300ms" }}>
           <div className="relative rounded-sm overflow-hidden" style={{ border: "1px solid rgba(201,168,76,0.15)", background: "rgba(13,11,9,0.6)" }}>
-            {/* Header bar */}
             <div className="px-4 py-2 flex items-center justify-between" style={{ borderBottom: "1px solid rgba(201,168,76,0.1)" }}>
               <span className="font-mono-custom text-xs" style={{ color: "rgba(201,168,76,0.4)" }}>MERCATOR LIVE · OPENSTREETMAP</span>
               <div className="flex items-center gap-1.5">
@@ -141,54 +191,9 @@ export default function Index() {
               </div>
             </div>
 
-            {/* Real Map */}
-            <div style={{ height: "560px", width: "100%", position: "relative" }}>
-              <MapContainer
-                center={[20, 10]}
-                zoom={2}
-                minZoom={2}
-                maxZoom={18}
-                style={{ height: "100%", width: "100%" }}
-                worldCopyJump={true}
-              >
-                <TileLayer
-                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                />
-                <Polyline
-                  positions={polylineCoords}
-                  pathOptions={{ color: "#C9A84C", weight: 1, opacity: 0.4, dashArray: "4 6" }}
-                />
-                {locations.map(loc => (
-                  <Marker
-                    key={loc.id}
-                    position={[loc.lat, loc.lng]}
-                    icon={customIcon}
-                    ref={(ref) => { markerRefs.current[loc.id] = ref; }}
-                    eventHandlers={{
-                      mouseover: () => setActiveLocation(loc.id),
-                      mouseout: () => setActiveLocation(null),
-                      click: () => setActiveLocation(loc.id),
-                    }}
-                  >
-                    <Popup>
-                      <div>
-                        <div className="pin-popup-title">{loc.emoji} {loc.name}</div>
-                        <div className="pin-popup-meta">{loc.country} · {loc.date}</div>
-                        <div className="pin-popup-desc">{loc.desc}</div>
-                        <div className="pin-popup-coords">
-                          {formatCoord(loc.lat, true)} · {formatCoord(loc.lng, false)}
-                        </div>
-                      </div>
-                    </Popup>
-                  </Marker>
-                ))}
-                <FlyToLocation target={flyTarget} />
-              </MapContainer>
-            </div>
+            <div ref={mapContainerRef} style={{ height: "560px", width: "100%" }} />
           </div>
 
-          {/* Add form */}
           {showAddForm && (
             <div className="mt-4 p-4 animate-fade-in-up rounded-sm" style={{ border: "1px solid rgba(201,168,76,0.25)", background: "rgba(13,11,9,0.8)" }}>
               <div className="flex items-center justify-between mb-3">
@@ -221,7 +226,6 @@ export default function Index() {
           )}
         </div>
 
-        {/* RIGHT PANEL */}
         <div className="animate-fade-in-up space-y-2" style={{ animationDelay: "400ms" }}>
           <div className="flex items-center justify-between mb-4 pb-3" style={{ borderBottom: "1px solid rgba(201,168,76,0.1)" }}>
             <div className="flex items-center gap-2">
